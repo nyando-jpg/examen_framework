@@ -4,7 +4,9 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
+import jakarta.servlet.annotation.WebServlet;
 
+@WebServlet(name = "FrontServlet", urlPatterns = { "/" })
 public class FrontServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
