@@ -1,18 +1,24 @@
 @echo off
 setlocal
 
-:: Nom du fichier source
+:: Création des dossiers nécessaires
+if not exist build\classes mkdir build\classes
+if not exist dist mkdir dist
 
+:: Compilation des fichiers Java
+echo Compilation des fichiers Java...
+javac -d build\classes -cp "lib\*" src\framework\*.java annotation\*.java
 
-:: Nom du JAR à générer
-set JAR_NAME=framework.jar
+:: Création du fichier JAR
+echo Creation du fichier JAR...
+cd build\classes
+jar cvf ..\..\dist\Framework.jar .
+cd ..\..
 
-echo Compilation du fichier Java...
-javac -cp "jakarta.servlet-api.jar" -d . *.java
+:: Nettoyage
+echo Nettoyage des fichiers temporaires...
+rmdir /s /q build
 
-echo Creation du JAR : %JAR_NAME%
-jar cf %JAR_NAME% servlet
-
-echo JAR genere : %JAR_NAME%
+echo Build termine. Le fichier JAR se trouve dans le dossier 'dist'
 endlocal
 pause
