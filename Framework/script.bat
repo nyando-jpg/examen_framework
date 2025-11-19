@@ -7,7 +7,7 @@ if not exist dist mkdir dist
 
 :: Compilation des fichiers Java
 echo Compilation des fichiers Java...
-javac -d build\classes -cp "lib\*" src\framework\*.java annotation\*.java
+javac -d build\classes -cp "lib\*" src\framework\*.java annotation\*.java view\*.java
 
 :: Création du fichier JAR
 echo Creation du fichier JAR...

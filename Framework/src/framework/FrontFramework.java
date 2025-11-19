@@ -16,6 +16,7 @@ import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.rmi.ServerException;
 import java.util.Map;
+import view.ModelView;
 
 @WebServlet(name = "FrontFramework", urlPatterns = { "/" }, loadOnStartup = 1)
 public class FrontFramework extends HttpServlet {
@@ -74,18 +75,12 @@ public class FrontFramework extends HttpServlet {
         }
     }
 
-    private void customServe(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // resp.setContentType("text/html; charset=UTF-8");
-        // PrintWriter out = resp.getWriter();
+    private void customServe(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
         String path = req.getRequestURI().substring(req.getContextPath().length());
         String httpMethod = req.getMethod();
 
         try {
-            String result = invokeMethod(path, httpMethod);
-            resp.setContentType("text/html; charset=UTF-8");
-            PrintWriter out = resp.getWriter();
-            out.println(result);
-            out.flush();
+            invokeMethod(path, httpMethod, req, resp);
         } catch (Exception e) {
             resp.setContentType("text/html; charset=UTF-8");
             resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -97,42 +92,16 @@ public class FrontFramework extends HttpServlet {
         }
     }
 
-        // out.println("<!DOCTYPE html>");
-        // out.println("<html><body>");
-        // out.println("<h1>Framework Scan Result</h1>");
-
-    private String invokeMethod(String url, String httpMethod) throws Exception {
+    private void invokeMethod(String url, String httpMethod, HttpServletRequest req, HttpServletResponse resp) throws Exception {
         if (scanResult == null || scanResult.urlToMethod.isEmpty()) {
             throw new Exception("Aucune route configurée");
         }
 
-        // if (scanResult == null || scanResult.controllerClasses.isEmpty()) {
-        //     out.println("<p>Aucun contrôleur détecté.</p>");
-        // } else {
-        //     out.println("<h2>Contrôleurs détectés :</h2>");
-        //     for (Class<?> c : scanResult.controllerClasses) {
-        //         Controller ctrl = c.getAnnotation(Controller.class);
-        //         out.println("<p><strong>" + c.getName() + "</strong> (base = " + ctrl.base() + ")</p>");
-        //     }
-
-        //     out.println("<h2>Routes mappées :</h2>");
-        //     out.println("<ul>");
-        //     for (Map.Entry<String, Method> entry : scanResult.urlToMethod.entrySet()) {
-        //         Method m = entry.getValue();
-        //         Route route = m.getAnnotation(Route.class);
-        //         out.println("<li><b>URL:</b> " + entry.getKey() +
-        //                 " | <b>Classe:</b> " + m.getDeclaringClass().getSimpleName() +
-        //                 " | <b>Méthode:</b> " + m.getName() +
-        //                 " | <b>HTTP:</b> " + route.method() + "</li>");
-        //     }
-        //     out.println("</ul>");
         Method method = scanResult.urlToMethod.get(url);
         if (method == null) {
             throw new Exception("URL non trouvée: " + url);
         }
 
-        // out.println("</body></html>");
-        // out.flush();
         Route route = method.getAnnotation(Route.class);
         if (!route.method().equalsIgnoreCase(httpMethod)) {
             throw new Exception("Méthode HTTP non autorisée. Attendu: " + route.method() + ", Reçu: " + httpMethod);
@@ -143,10 +112,18 @@ public class FrontFramework extends HttpServlet {
 
         Object result = method.invoke(controllerInstance);
 
-        if (result instanceof String) {
-            return (String) result;
+        if (result instanceof ModelView) {
+            ModelView modelView = (ModelView) result;
+            String viewPath = modelView.getView();
+            RequestDispatcher dispatcher = req.getRequestDispatcher(viewPath);
+            dispatcher.forward(req, resp);
+        } else if (result instanceof String) {
+            resp.setContentType("text/html; charset=UTF-8");
+            PrintWriter out = resp.getWriter();
+            out.println((String) result);
+            out.flush();
         } else {
-            throw new Exception("La méthode doit retourner un String");
+            throw new Exception("La méthode doit retourner un String ou un ModelView");
         }
     }
 
