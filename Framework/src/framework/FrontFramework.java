@@ -98,16 +98,13 @@ public class FrontFramework extends HttpServlet {
                 }
             }
         }
-
         if (method == null) {
             throw new Exception("URL non trouvée: " + url);
         }
-
         Route route = method.getAnnotation(Route.class);
         if (!route.method().equalsIgnoreCase(httpMethod)) {
             throw new Exception("Méthode HTTP non autorisée. Attendu: " + route.method() + ", Reçu: " + httpMethod);
         }
-
         Class<?> controllerClass = method.getDeclaringClass();
         Object controllerInstance = controllerClass.getDeclaredConstructor().newInstance();
 
