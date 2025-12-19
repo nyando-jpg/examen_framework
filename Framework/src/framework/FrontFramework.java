@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import annotation.AnnotationScanner;
+import view.RestResponse;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -67,13 +68,42 @@ public class FrontFramework extends HttpServlet {
             invokeMethod(path, httpMethod, req, resp);
         } 
         catch (Exception e) {
-            resp.setContentType("text/html; charset=UTF-8");
-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            PrintWriter out = resp.getWriter();
-            out.println("<h1>Erreur 404</h1>");
-            out.println("<p>URL non trouvée: " + path + "</p>");
-            out.println("<p>Méthode HTTP: " + httpMethod + "</p>");
-            out.flush();
+            // Vérifier si c'est une erreur d'un RestController
+            boolean isRestError = false;
+            try {
+                Method method = scanResult.urlToMethod.get(path);
+                if (method == null) {
+                    for (UrlPattern pattern : scanResult.urlPatterns) {
+                        if (pattern.matches(path)) {
+                            method = pattern.getMethod();
+                            break;
+                        }
+                    }
+                }
+                if (method != null) {
+                    Class<?> controllerClass = method.getDeclaringClass();
+                    isRestError = scanResult.restControllers.getOrDefault(controllerClass, false);
+                }
+            } catch (Exception ex) {
+                getServletContext().log("Exception during controller method lookup in customServe", ex);
+            }
+
+            if (isRestError) {
+                resp.setContentType("application/json; charset=UTF-8");
+                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                PrintWriter out = resp.getWriter();
+                RestResponse errorResponse = RestResponse.error("NOT_FOUND", e.getMessage(), null);
+                out.println(errorResponse.toJson());
+                out.flush();
+            } else {
+                resp.setContentType("text/html; charset=UTF-8");
+                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                PrintWriter out = resp.getWriter();
+                out.println("<h1>Erreur 404</h1>");
+                out.println("<p>URL non trouvée: " + path + "</p>");
+                out.println("<p>Méthode HTTP: " + httpMethod + "</p>");
+                out.flush();
+            }
         }
     }
 
@@ -110,6 +140,9 @@ public class FrontFramework extends HttpServlet {
 
         Class<?> controllerClass = method.getDeclaringClass();
         Object controllerInstance = controllerClass.getDeclaredConstructor().newInstance();
+
+        // Vérifier si c'est un RestController
+        boolean isRestController = scanResult.restControllers.getOrDefault(controllerClass, false);
 
         // Préparer les arguments de la méthode
         Parameter[] parameters = method.getParameters();
@@ -209,6 +242,35 @@ public class FrontFramework extends HttpServlet {
 
         Object result = method.invoke(controllerInstance, args);
 
+        // Si c'est un RestController, encapsuler dans RestResponse
+        if (isRestController) {
+            handleRestResponse(result, resp);
+        } else {
+            handleNormalResponse(result, req, resp);
+        }
+    }
+
+    private void handleRestResponse(Object result, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json; charset=UTF-8");
+        PrintWriter out = resp.getWriter();
+
+        RestResponse restResponse;
+
+        if (result instanceof RestResponse) {
+            restResponse = (RestResponse) result;
+        } else if (result instanceof ModelView) {
+            ModelView modelView = (ModelView) result;
+            restResponse = RestResponse.success(modelView.getData());
+        } else {
+            restResponse = RestResponse.success(result);
+        }
+
+        out.println(restResponse.toJson());
+        out.flush();
+    }
+
+    private void handleNormalResponse(Object result, HttpServletRequest req, HttpServletResponse resp) 
+            throws Exception, IOException, ServletException {
         if (result instanceof ModelView) {
             ModelView modelView = (ModelView) result;
                         
