@@ -1,6 +1,5 @@
 package src.framework;
 
-import annotation.Route;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
@@ -84,8 +83,7 @@ public class FrontFramework extends HttpServlet {
         }
 
         Method method = null;
-        Map<String, String> urlParams = new HashMap<>();
-
+        Map<String, Object> urlParams = new HashMap<>();
         // 1. Chercher d'abord une correspondance exacte
         method = scanResult.urlToMethod.get(url);
 
@@ -94,8 +92,9 @@ public class FrontFramework extends HttpServlet {
             for (UrlPattern pattern : scanResult.urlPatterns) {
                 if (pattern.matches(url)) {
                     method = pattern.getMethod();
-                    urlParams = pattern.extractParams(url);
-                    break;
+                    Map<String, String> extractedParams = pattern.extractParams(url);
+                    // Convert to Map<String, Object> to support mixed parameter types in method invocation
+                    urlParams.putAll(extractedParams);
                 }
             }
         }
@@ -140,20 +139,52 @@ public class FrontFramework extends HttpServlet {
                 }
 
                 // Ajouter aussi les paramètres extraits de l'URL
-                for (Map.Entry<String, String> entry : urlParams.entrySet()) {
+                for (Map.Entry<String, Object> entry : urlParams.entrySet()) {
                     paramMap.put(entry.getKey(), entry.getValue());
                 }
 
                 args[i] = paramMap;
             }
-            // Si le paramètre a l'annotation @RequestParam (ancienne méthode)
+            // Si le paramètre a l'annotation @RequestParam
             else if (param.isAnnotationPresent(annotation.Param.class)) {
                 annotation.Param paramAnnotation = param.getAnnotation(annotation.Param.class);
                 String paramName = paramAnnotation.value();
-                String paramValue = urlParams.get(paramName);
+                String paramValue = null;
 
-                // Si pas dans l'URL, chercher dans les paramètres de la requête
-                if (paramValue == null) {
+                // Chercher d'abord dans les paramètres URL extraits
+                Object urlParamValue = urlParams.get(paramName);
+                if (urlParamValue != null) {
+                    paramValue = urlParamValue.toString();
+                } else {
+                    // Sinon chercher dans les paramètres de la requête
+                    paramValue = req.getParameter(paramName);
+                }
+                // Conversion selon le type
+                if (paramType == String.class) {
+                    args[i] = paramValue;
+                } else if (paramType == int.class || paramType == Integer.class) {
+                    args[i] = paramValue != null ? Integer.parseInt(paramValue) : 0;
+                } else if (paramType == long.class || paramType == Long.class) {
+                    args[i] = paramValue != null ? Long.parseLong(paramValue) : 0L;
+                } else if (paramType == double.class || paramType == Double.class) {
+                    args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
+                } else if (paramType == boolean.class || paramType == Boolean.class) {
+                    args[i] = paramValue != null ? Boolean.parseBoolean(paramValue) : false;
+                } else {
+                    args[i] = paramValue;
+                }
+            }
+            // Si le paramètre n'a pas d'annotation, utiliser le nom du paramètre
+            else if (param.isNamePresent()) {
+                String paramName = param.getName();
+                String paramValue = null;
+
+                // Chercher d'abord dans les paramètres URL extraits
+                Object urlParamValue = urlParams.get(paramName);
+                if (urlParamValue != null) {
+                    paramValue = urlParamValue.toString();
+                } else {
+                    // Sinon chercher dans les paramètres de la requête
                     paramValue = req.getParameter(paramName);
                 }
 
@@ -166,6 +197,8 @@ public class FrontFramework extends HttpServlet {
                     args[i] = paramValue != null ? Long.parseLong(paramValue) : 0L;
                 } else if (paramType == double.class || paramType == Double.class) {
                     args[i] = paramValue != null ? Double.parseDouble(paramValue) : 0.0;
+                } else if (paramType == boolean.class || paramType == Boolean.class) {
+                    args[i] = paramValue != null ? Boolean.parseBoolean(paramValue) : false;
                 } else {
                     args[i] = paramValue;
                 }
